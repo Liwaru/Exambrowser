@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <group android:checkableBehavior="single">
+        <item
+            android:id="@+id/menu_dashboard"
+            android:checked="true"
+            android:title="@string/admin_menu_dashboard" />
+        <item
+            android:id="@+id/menu_data_user"
+            android:title="@string/admin_menu_data_user" />
+        <item
+            android:id="@+id/menu_data_ujian"
+            android:title="@string/admin_menu_data_ujian" />
+        <item
+            android:id="@+id/menu_jadwal_ujian"
+            android:title="@string/admin_menu_jadwal_ujian" />
+        <item
+            android:id="@+id/menu_pengawasan"
+            android:title="@string/admin_menu_pengawasan" />
+        <item
+            android:id="@+id/menu_monitoring"
+            android:title="@string/admin_menu_monitoring" />
+        <item
+            android:id="@+id/menu_laporan"
+            android:title="@string/admin_menu_laporan" />
+        <item
+            android:id="@+id/menu_pengaturan"
+            android:title="@string/admin_menu_pengaturan" />
+        <item
+            android:id="@+id/menu_logout"
+            android:title="@string/logout" />
+    </group>
+</menu>

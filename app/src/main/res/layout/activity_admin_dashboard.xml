@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.drawerlayout.widget.DrawerLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/adminDrawerLayout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".MainActivity">
+
+    <LinearLayout
+        android:id="@+id/adminContent"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/adminToolbar"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:background="@color/white"
+            android:elevation="2dp"
+            app:navigationIcon="@drawable/ic_menu_24"
+            app:title="@string/admin_dashboard_title"
+            app:titleTextColor="@color/text_primary" />
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:fillViewport="true"
+            android:layout_weight="1">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <TextView
+                    android:id="@+id/adminNameText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="14sp"
+                    tools:text="Login sebagai Admin Sekolah" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:lineSpacingExtra="3dp"
+                    android:text="@string/admin_dashboard_subtitle"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="14sp" />
+
+                <GridLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:columnCount="2"
+                    android:rowCount="2">
+
+                    <TextView
+                        style="@style/DashboardStatCard"
+                        android:text="@string/admin_stat_students" />
+
+                    <TextView
+                        style="@style/DashboardStatCard"
+                        android:text="@string/admin_stat_teachers" />
+
+                    <TextView
+                        style="@style/DashboardStatCard"
+                        android:text="@string/admin_stat_schedules" />
+
+                    <TextView
+                        style="@style/DashboardStatCard"
+                        android:text="@string/admin_stat_active_exams" />
+                </GridLayout>
+
+                <TextView
+                    style="@style/DashboardSectionTitle"
+                    android:text="@string/admin_shortcut_title" />
+
+                <GridLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:columnCount="2">
+
+                    <TextView
+                        style="@style/AdminShortcutCard"
+                        android:text="@string/admin_shortcut_schedule" />
+
+                    <TextView
+                        style="@style/AdminShortcutCard"
+                        android:text="@string/admin_shortcut_teacher" />
+
+                    <TextView
+                        style="@style/AdminShortcutCard"
+                        android:text="@string/admin_shortcut_exam" />
+
+                    <TextView
+                        style="@style/AdminShortcutCard"
+                        android:text="@string/admin_shortcut_report" />
+                </GridLayout>
+
+                <TextView
+                    style="@style/DashboardSectionTitle"
+                    android:text="@string/admin_activity_title" />
+
+                <LinearLayout
+                    style="@style/DashboardPanel"
+                    android:orientation="vertical">
+
+                    <TextView
+                        style="@style/DashboardFeatureRow"
+                        android:text="@string/admin_activity_yudi" />
+
+                    <TextView
+                        style="@style/DashboardFeatureRow"
+                        android:text="@string/admin_activity_students" />
+
+                    <TextView
+                        style="@style/DashboardFeatureRow"
+                        android:text="@string/admin_activity_pin" />
+                </LinearLayout>
+
+                <TextView
+                    style="@style/DashboardSectionTitle"
+                    android:text="@string/admin_priority_title" />
+
+                <LinearLayout
+                    style="@style/DashboardPanel"
+                    android:orientation="vertical">
+
+                    <TextView
+                        style="@style/DashboardFeatureRow"
+                        android:text="@string/admin_priority_schedule" />
+
+                    <TextView
+                        style="@style/DashboardFeatureRow"
+                        android:text="@string/admin_priority_relation" />
+                </LinearLayout>
+            </LinearLayout>
+        </ScrollView>
+    </LinearLayout>
+
+    <com.google.android.material.navigation.NavigationView
+        android:id="@+id/adminNavigationView"
+        android:layout_width="304dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="start"
+        app:headerLayout="@layout/nav_header_admin"
+        app:menu="@menu/admin_drawer_menu" />
+</androidx.drawerlayout.widget.DrawerLayout>
