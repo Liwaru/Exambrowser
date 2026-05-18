@@ -1,81 +1,64 @@
 package com.example.exambrowser
 
 import android.os.Bundle
+import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup
+import android.view.WindowInsets
+import android.view.WindowInsetsController
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.widget.FrameLayout
+import android.widget.EditText
 import android.widget.TextView
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.GravityCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.drawerlayout.widget.DrawerLayout
 import com.google.android.material.button.MaterialButton
-import com.google.android.material.navigation.NavigationView
 import com.google.android.material.snackbar.Snackbar
-import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 
 class MainActivity : AppCompatActivity() {
-    private var currentSession: UserSession? = null
-    private var activeMathPin = "------"
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        showLogin()
+    companion object {
+        private const val BASE_URL = "http://10.46.96.185:8002"
+        private const val EXAM_URL = "http://elsph.permataharapanku.sch.id"
     }
 
-    private fun showLogin() {
-        setContentView(R.layout.activity_main)
-        applySystemBarsPadding(R.id.main)
-
-        val usernameLayout = findViewById<TextInputLayout>(R.id.usernameLayout)
-        val passwordLayout = findViewById<TextInputLayout>(R.id.passwordLayout)
-        val usernameInput = findViewById<TextInputEditText>(R.id.usernameInput)
-        val passwordInput = findViewById<TextInputEditText>(R.id.passwordInput)
-        val loginButton = findViewById<MaterialButton>(R.id.loginButton)
-
-        loginButton.setOnClickListener {
-            usernameLayout.error = null
-            passwordLayout.error = null
-
-            val username = usernameInput.text?.toString().orEmpty()
-            val password = passwordInput.text?.toString().orEmpty()
-
-            if (username.isBlank()) {
-                usernameLayout.error = "Username wajib diisi."
-                return@setOnClickListener
-            }
-
-            if (password.isBlank()) {
-                passwordLayout.error = "Password wajib diisi."
-                return@setOnClickListener
-            }
-
-            val session = DemoAccess.login(username, password)
-            if (session == null) {
-                passwordLayout.error = "Username atau password salah."
-                return@setOnClickListener
-            }
-
-            currentSession = session
-            when (session.level) {
-                UserLevel.STUDENT -> showPinInput(session)
-                UserLevel.TEACHER -> showTeacherDashboard(session)
-                UserLevel.ADMIN -> showAdminDashboard(session)
+    private var activeSessionId: Long? = null
+    private var examWebView: WebView? = null
+    private val backPressedCallback = object : OnBackPressedCallback(true) {
+        override fun handleOnBackPressed() {
+            if (examWebView != null) {
+                showExitPinDialog()
+            } else {
+                isEnabled = false
+                onBackPressedDispatcher.onBackPressed()
+                isEnabled = true
             }
         }
     }
 
-    private fun showPinInput(session: UserSession) {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        onBackPressedDispatcher.addCallback(this, backPressedCallback)
+        showPinInput()
+    }
+
+    private fun showPinInput() {
         setContentView(R.layout.activity_pin)
         applySystemBarsPadding(R.id.pinMain)
 
         val pinLayout = findViewById<TextInputLayout>(R.id.pinLayout)
         val pinInput = findViewById<TextInputEditText>(R.id.pinInput)
         val pinButton = findViewById<MaterialButton>(R.id.pinButton)
-        val logoutButton = findViewById<MaterialButton>(R.id.logoutFromPinButton)
 
         pinButton.setOnClickListener {
             val pin = pinInput.text?.toString().orEmpty()
@@ -84,115 +67,201 @@ class MainActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            if (!DemoAccess.isValidExamPin(pin)) {
-                pinLayout.error = "PIN tidak sesuai."
-                return@setOnClickListener
-            }
-
             pinLayout.error = null
-            Snackbar.make(
-                findViewById(R.id.pinMain),
-                "${session.displayName} berhasil masuk ujian.",
-                Snackbar.LENGTH_LONG
-            ).show()
-        }
+            pinButton.isEnabled = false
 
-        logoutButton.setOnClickListener { logout() }
-    }
+            Thread {
+                val result = joinExamSession(pin)
 
-    private fun showTeacherDashboard(session: UserSession) {
-        setContentView(R.layout.activity_dashboard)
-        applySystemBarsPadding(R.id.dashboardMain)
+                runOnUiThread {
+                    pinButton.isEnabled = true
 
-        val teacherNameText = findViewById<TextView>(R.id.teacherNameText)
-        val openMathSessionButton = findViewById<MaterialButton>(R.id.openMathSessionButton)
-        val openIndoSessionButton = findViewById<MaterialButton>(R.id.openIndoSessionButton)
-        val logoutButton = findViewById<MaterialButton>(R.id.logoutFromDashboardButton)
-
-        teacherNameText.text = getString(R.string.dashboard_teacher_name, session.displayName)
-
-        openMathSessionButton.setOnClickListener {
-            showMathSessionDetail(session)
-        }
-
-        openIndoSessionButton.setOnClickListener {
-            openSessionPlaceholder("Bahasa Indonesia", "10:30 - 12:00")
-        }
-
-        logoutButton.setOnClickListener { logout() }
-    }
-
-    private fun showMathSessionDetail(session: UserSession) {
-        setContentView(R.layout.activity_session_detail)
-        applySystemBarsPadding(R.id.sessionDetailMain)
-
-        val supervisorText = findViewById<TextView>(R.id.sessionSupervisorText)
-        val activePinText = findViewById<TextView>(R.id.activePinText)
-        val generatePinButton = findViewById<MaterialButton>(R.id.generatePinButton)
-        val backButton = findViewById<MaterialButton>(R.id.backToDashboardButton)
-        val logoutButton = findViewById<MaterialButton>(R.id.logoutFromSessionButton)
-
-        supervisorText.text = getString(R.string.session_supervisor, session.displayName)
-        activePinText.text = activeMathPin
-
-        generatePinButton.setOnClickListener {
-            activeMathPin = "839204"
-            activePinText.text = activeMathPin
-            Snackbar.make(
-                findViewById(R.id.sessionDetailMain),
-                "PIN baru aktif. PIN lama otomatis nonaktif.",
-                Snackbar.LENGTH_LONG
-            ).show()
-        }
-
-        backButton.setOnClickListener { showTeacherDashboard(session) }
-        logoutButton.setOnClickListener { logout() }
-    }
-
-    private fun openSessionPlaceholder(subject: String, time: String) {
-        Snackbar.make(
-            findViewById(R.id.dashboardMain),
-            "Membuka detail sesi $subject ($time).",
-            Snackbar.LENGTH_LONG
-        ).show()
-    }
-
-    private fun showAdminDashboard(session: UserSession) {
-        setContentView(R.layout.activity_admin_dashboard)
-        applySystemBarsPadding(R.id.adminContent)
-
-        val drawerLayout = findViewById<DrawerLayout>(R.id.adminDrawerLayout)
-        val toolbar = findViewById<MaterialToolbar>(R.id.adminToolbar)
-        val navigationView = findViewById<NavigationView>(R.id.adminNavigationView)
-        val adminNameText = findViewById<TextView>(R.id.adminNameText)
-
-        adminNameText.text = getString(R.string.admin_login_as, session.displayName)
-        toolbar.setNavigationOnClickListener {
-            drawerLayout.openDrawer(GravityCompat.START)
-        }
-
-        navigationView.setNavigationItemSelectedListener { item ->
-            drawerLayout.closeDrawer(GravityCompat.START)
-            when (item.itemId) {
-                R.id.menu_logout -> {
-                    logout()
-                    true
+                    if (result.success) {
+                        Snackbar.make(
+                            findViewById(R.id.pinMain),
+                            "PIN benar.",
+                            Snackbar.LENGTH_SHORT
+                        ).show()
+                        activeSessionId = result.sessionId
+                        pinButton.postDelayed({ showExamWebsite() }, 700)
+                    } else {
+                        pinLayout.error = result.message
+                    }
                 }
-                else -> {
-                    Snackbar.make(
-                        findViewById(R.id.adminContent),
-                        "${item.title} dibuka.",
-                        Snackbar.LENGTH_SHORT
-                    ).show()
-                    true
+            }.start()
+        }
+    }
+
+    private fun joinExamSession(pin: String): JoinResult {
+        return try {
+            val connection = (URL("$BASE_URL/api/student/exam-sessions/join").openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 10_000
+                readTimeout = 10_000
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Accept", "application/json")
+            }
+
+            connection.outputStream.use { output ->
+                output.write(JSONObject().put("pin", pin).toString().toByteArray())
+            }
+
+            val responseCode = connection.responseCode
+            val responseBody = (if (responseCode in 200..299) {
+                connection.inputStream
+            } else {
+                connection.errorStream
+            })?.bufferedReader()?.use { it.readText() }.orEmpty()
+
+            val json = JSONObject(responseBody)
+            if (responseCode in 200..299) {
+                JoinResult(
+                    success = true,
+                    message = json.optString("message", "Berhasil masuk ujian."),
+                    sessionTitle = json.optJSONObject("session")?.optString("title", "ujian").orEmpty(),
+                    sessionId = json.optJSONObject("session")?.optLong("id")
+                        ?.takeIf { it > 0 }
+                )
+            } else {
+                JoinResult(
+                    success = false,
+                    message = json.optString("message", "PIN tidak valid."),
+                    sessionTitle = "",
+                    sessionId = null
+                )
+            }
+        } catch (_: Exception) {
+            JoinResult(
+                success = false,
+                message = "Tidak bisa terhubung ke server.",
+                sessionTitle = "",
+                sessionId = null
+            )
+        }
+    }
+
+    private data class JoinResult(
+        val success: Boolean,
+        val message: String,
+        val sessionTitle: String,
+        val sessionId: Long?
+    )
+
+    private fun showExamWebsite() {
+        setContentView(R.layout.activity_exam_web)
+        applySystemBarsPadding(R.id.examWebMain)
+
+        examWebView = findViewById<WebView>(R.id.examWebView).apply {
+            webViewClient = object : WebViewClient() {
+                override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                    if (url.isNullOrBlank()) return false
+
+                    val currentHost = URL(EXAM_URL).host
+                    val nextHost = runCatching { URL(url).host }.getOrNull()
+                    val nextPath = runCatching { URL(url).path.lowercase() }.getOrDefault("")
+                    val isExitLikeNavigation =
+                        "logout" in nextPath ||
+                            "keluar" in nextPath ||
+                            "signout" in nextPath ||
+                            "exit" in nextPath
+
+                    return if (nextHost == currentHost && !isExitLikeNavigation) {
+                        view?.loadUrl(url)
+                        true
+                    } else {
+                        showExitPinDialog()
+                        true
+                    }
                 }
             }
+            settings.javaScriptEnabled = true
+            settings.domStorageEnabled = true
+            loadUrl(EXAM_URL)
+        }
+
+        enterExamLockMode()
+
+        findViewById<TextView>(R.id.exitExamButton).setOnClickListener {
+            Snackbar.make(
+                findViewById(R.id.examWebMain),
+                "Membuka PIN keluar...",
+                Snackbar.LENGTH_SHORT
+            ).show()
+            showExitPinDialog()
         }
     }
 
-    private fun logout() {
-        currentSession = null
-        showLogin()
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK && examWebView != null) {
+            showExitPinDialog()
+            return true
+        }
+
+        return super.onKeyDown(keyCode, event)
+    }
+
+    private fun showExitPinDialog() {
+        val exitPinInput = EditText(this).apply {
+            hint = "PIN keluar"
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            setSingleLine(true)
+            maxLines = 1
+        }
+
+        val container = FrameLayout(this).apply {
+            val padding = (24 * resources.displayMetrics.density).toInt()
+            setPadding(padding, 0, padding, 0)
+            addView(
+                exitPinInput,
+                ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            )
+        }
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("PIN Keluar")
+            .setView(container)
+            .setNegativeButton("Batal", null)
+            .setPositiveButton("Keluar", null)
+            .create()
+
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val enteredPin = exitPinInput.text?.toString().orEmpty()
+                val sessionId = activeSessionId
+                if (sessionId == null) {
+                    exitPinInput.error = "Sesi ujian belum terbaca."
+                    return@setOnClickListener
+                }
+
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = false
+
+                Thread {
+                    val result = verifyExitPin(sessionId, enteredPin)
+
+                    runOnUiThread {
+                        dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
+
+                        if (!result.success) {
+                            exitPinInput.error = result.message
+                            return@runOnUiThread
+                        }
+
+                        dialog.dismiss()
+                        exitExamLockMode()
+                        examWebView?.destroy()
+                        examWebView = null
+                        activeSessionId = null
+                        finishAndRemoveTask()
+                    }
+                }.start()
+            }
+        }
+
+        dialog.show()
     }
 
     private fun applySystemBarsPadding(rootId: Int) {
@@ -200,6 +269,77 @@ class MainActivity : AppCompatActivity() {
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             view.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
+        }
+    }
+
+    private fun enterExamLockMode() {
+        hideSystemBars()
+        runCatching { startLockTask() }
+    }
+
+    private fun exitExamLockMode() {
+        runCatching { stopLockTask() }
+        showSystemBars()
+    }
+
+    private fun hideSystemBars() {
+        window.insetsController?.apply {
+            hide(WindowInsets.Type.systemBars())
+            systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+    }
+
+    private fun showSystemBars() {
+        window.insetsController?.show(WindowInsets.Type.systemBars())
+    }
+
+    private fun verifyExitPin(sessionId: Long, pin: String): ExitResult {
+        return try {
+            val connection = (URL("$BASE_URL/api/student/exam-sessions/$sessionId/exit").openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 10_000
+                readTimeout = 10_000
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Accept", "application/json")
+            }
+
+            connection.outputStream.use { output ->
+                output.write(JSONObject().put("pin", pin).toString().toByteArray())
+            }
+
+            val responseCode = connection.responseCode
+            val responseBody = (if (responseCode in 200..299) {
+                connection.inputStream
+            } else {
+                connection.errorStream
+            })?.bufferedReader()?.use { it.readText() }.orEmpty()
+
+            val json = JSONObject(responseBody)
+            ExitResult(
+                success = responseCode in 200..299,
+                message = json.optString(
+                    "message",
+                    if (responseCode in 200..299) "PIN keluar benar." else "PIN keluar salah."
+                )
+            )
+        } catch (_: Exception) {
+            ExitResult(
+                success = false,
+                message = "Tidak bisa memverifikasi PIN keluar."
+            )
+        }
+    }
+
+    private data class ExitResult(
+        val success: Boolean,
+        val message: String
+    )
+
+    override fun onResume() {
+        super.onResume()
+        if (examWebView != null) {
+            enterExamLockMode()
         }
     }
 }
