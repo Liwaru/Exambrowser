@@ -22,7 +22,9 @@ import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import org.json.JSONObject
+import java.io.IOException
 import java.net.HttpURLConnection
+import java.net.SocketTimeoutException
 import java.net.URL
 
 class MainActivity : AppCompatActivity() {
@@ -131,10 +133,10 @@ class MainActivity : AppCompatActivity() {
                     sessionId = null
                 )
             }
-        } catch (_: Exception) {
+        } catch (exception: Exception) {
             JoinResult(
                 success = false,
-                message = "Tidak bisa terhubung ke server.",
+                message = connectionErrorMessage(exception),
                 sessionTitle = "",
                 sessionId = null
             )
@@ -323,11 +325,19 @@ class MainActivity : AppCompatActivity() {
                     if (responseCode in 200..299) "PIN keluar benar." else "PIN keluar salah."
                 )
             )
-        } catch (_: Exception) {
+        } catch (exception: Exception) {
             ExitResult(
                 success = false,
-                message = "Tidak bisa memverifikasi PIN keluar."
+                message = connectionErrorMessage(exception)
             )
+        }
+    }
+
+    private fun connectionErrorMessage(exception: Exception): String {
+        return when (exception) {
+            is SocketTimeoutException -> "Server tidak merespons. Pastikan backend aktif di $BASE_URL."
+            is IOException -> "Tidak bisa terhubung ke server $BASE_URL."
+            else -> "Respons server tidak valid: ${exception.message.orEmpty()}"
         }
     }
 
