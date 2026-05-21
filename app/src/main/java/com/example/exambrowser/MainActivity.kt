@@ -1,6 +1,10 @@
 package com.example.exambrowser
 
+import android.app.ActivityManager
+import android.content.Context
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
@@ -31,10 +35,13 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val BASE_URL = "http://10.46.96.185:8002"
         private const val EXAM_URL = "http://elsph.permataharapanku.sch.id"
+        private const val LOCK_TASK_RETRY_DELAY_MS = 1_500L
     }
 
     private var activeSessionId: Long? = null
     private var examWebView: WebView? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var lockTaskRetryScheduled = false
     private val backPressedCallback = object : OnBackPressedCallback(true) {
         override fun handleOnBackPressed() {
             if (examWebView != null) {
@@ -58,22 +65,32 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_pin)
         applySystemBarsPadding(R.id.pinMain)
 
+        val nameLayout = findViewById<TextInputLayout>(R.id.nameLayout)
+        val nameInput = findViewById<TextInputEditText>(R.id.nameInput)
         val pinLayout = findViewById<TextInputLayout>(R.id.pinLayout)
         val pinInput = findViewById<TextInputEditText>(R.id.pinInput)
         val pinButton = findViewById<MaterialButton>(R.id.pinButton)
 
         pinButton.setOnClickListener {
+            val name = nameInput.text?.toString().orEmpty().trim()
             val pin = pinInput.text?.toString().orEmpty()
+            if (name.isBlank()) {
+                nameLayout.error = "Nama wajib diisi."
+                return@setOnClickListener
+            }
+
             if (pin.length != 6) {
+                nameLayout.error = null
                 pinLayout.error = "PIN harus 6 digit."
                 return@setOnClickListener
             }
 
+            nameLayout.error = null
             pinLayout.error = null
             pinButton.isEnabled = false
 
             Thread {
-                val result = joinExamSession(pin)
+                val result = joinExamSession(name, pin)
 
                 runOnUiThread {
                     pinButton.isEnabled = true
@@ -94,7 +111,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun joinExamSession(pin: String): JoinResult {
+    private fun joinExamSession(name: String, pin: String): JoinResult {
         return try {
             val connection = (URL("$BASE_URL/api/student/exam-sessions/join").openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
@@ -106,7 +123,13 @@ class MainActivity : AppCompatActivity() {
             }
 
             connection.outputStream.use { output ->
-                output.write(JSONObject().put("pin", pin).toString().toByteArray())
+                output.write(
+                    JSONObject()
+                        .put("name", name)
+                        .put("pin", pin)
+                        .toString()
+                        .toByteArray()
+                )
             }
 
             val responseCode = connection.responseCode
@@ -277,11 +300,38 @@ class MainActivity : AppCompatActivity() {
     private fun enterExamLockMode() {
         hideSystemBars()
         runCatching { startLockTask() }
+        scheduleLockTaskRetry()
     }
 
     private fun exitExamLockMode() {
+        lockTaskRetryScheduled = false
+        mainHandler.removeCallbacksAndMessages(null)
         runCatching { stopLockTask() }
         showSystemBars()
+    }
+
+    private fun scheduleLockTaskRetry() {
+        if (lockTaskRetryScheduled) return
+
+        lockTaskRetryScheduled = true
+        mainHandler.postDelayed({
+            lockTaskRetryScheduled = false
+
+            if (examWebView == null || isLockTaskActive()) return@postDelayed
+
+            Snackbar.make(
+                findViewById(R.id.examWebMain),
+                "Mode ujian wajib diaktifkan.",
+                Snackbar.LENGTH_SHORT
+            ).show()
+
+            enterExamLockMode()
+        }, LOCK_TASK_RETRY_DELAY_MS)
+    }
+
+    private fun isLockTaskActive(): Boolean {
+        val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        return activityManager.lockTaskModeState != ActivityManager.LOCK_TASK_MODE_NONE
     }
 
     private fun hideSystemBars() {
